@@ -1,0 +1,51 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: mariadb_messageq
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${DATASOURCE_USERNAME}
+      - MYSQL_PASSWORD=${DATASOURCE_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql  # Persistent storage for MariaDB
+    networks:
+      - messageqnetwork
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  messageq:
+    image: quarkus/messageq-jvm
+    container_name: messageq
+    environment:
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONEEXTENSION_FIRST=${TWILIO_PHONEEXTENSION_FIRST}
+      - TWILIO_PHONENUMBER_FIRST=${TWILIO_PHONENUMBER_FIRST}
+      - TWILIO_MESSAGING_SERVICE_SID=${TWILIO_MESSAGING_SERVICE_SID}
+      - JDBC_URL=${JDBC_URL}
+      - DATASOURCE_USERNAME=${DATASOURCE_USERNAME}
+      - DATASOURCE_PASSWORD=${DATASOURCE_PASSWORD}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+        #restart: true
+    ports:
+      - "8443:8443"  # Expose Quarkus application on port 8443
+    networks:
+      - messageqnetwork
+
+volumes:
+  mariadb_data:
+    driver: local  # Define a named volume for MariaDB to store persistent data
+
+networks:
+  messageqnetwork:
+    driver: bridge  # Create a dedicated bridge network for the containers
+
